@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+
+    <!-- Agar website nyaman dibuka di HP -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Warna browser pada perangkat mobile -->
+    <meta name="theme-color" content="#24150d">
+
+    <title>Mustika Pradapati Ke-IV | Video Purna</title>
+
+    <!-- File CSS -->
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <!-- =========================
+         CONTAINER UTAMA
+    ========================== -->
+    <main class="app">
+
+
+        <!-- =========================
+             HEADER / JUDUL
+        ========================== -->
+        <header class="hero">
+
+            <div class="eyebrow">
+                AMBALAN SMAN 1 BMR
+            </div>
+
+            <h1>
+                MUSTIKA PRADAPATI
+                <span>KE-IV</span>
+            </h1>
+
+            <p>
+                Pesan Purna untuk Musyawarah Tinggi
+            </p>
+
+        </header>
+
+
+        <!-- =========================
+             BAGIAN UPLOAD VIDEO
+        ========================== -->
+        <section class="card intro" id="uploadCard">
+
+            <h2>
+                Buat Video Pesan Purna
+            </h2>
+
+            <p>
+                Rekam video menggunakan kamera HP kamu,
+                lalu upload di sini untuk dipasangkan
+                dengan Twibbon.
+            </p>
+
+
+            <!--
+                Label ini nantinya berfungsi
+                sebagai tombol upload
+            -->
+            <label
+                class="upload-btn"
+                for="videoInput"
+            >
+                📁 Pilih Video
+            </label>
+
+
+            <!--
+                Input file sebenarnya disembunyikan.
+                Ketika label di atas diklik,
+                input ini akan terbuka.
+            -->
+            <input
+                type="file"
+                id="videoInput"
+                accept="video/*"
+                hidden
+            >
+
+
+            <small>
+                Disarankan portrait 9:16 · maksimal 30 detik
+            </small>
+
+
+            <!-- Tempat menampilkan pesan error -->
+            <p
+                class="error"
+                id="uploadError"
+                hidden
+            ></p>
+
+        </section>
+
+
+        <!-- =========================
+             EDITOR VIDEO
+        ========================== -->
+        <section
+            class="editor card"
+            id="editor"
+            hidden
+        >
+
+            <!-- Judul editor -->
+            <div class="section-head">
+
+                <div>
+
+                    <h2>
+                        Sesuaikan Video
+                    </h2>
+
+                    <p>
+                        Geser video dengan jari atau mouse.
+                        Gunakan zoom sampai posisinya pas.
+                    </p>
+
+                </div>
+
+
+                <!-- Tombol reset -->
+                <button
+                    class="ghost"
+                    id="resetBtn"
+                    type="button"
+                >
+                    ↻ Reset
+                </button>
+
+            </div>
+
+
+            <!-- =========================
+                 AREA PREVIEW
+            ========================== -->
+            <div class="stage-wrap">
+
+                <div
+                    class="stage"
+                    id="stage"
+                >
+
+                    <!--
+                        Canvas adalah tempat
+                        video + Twibbon nantinya
+                        digabungkan.
+                    -->
+                    <canvas
+                        id="previewCanvas"
+                        width="1080"
+                        height="1920"
+                    ></canvas>
+
+
+                    <!--
+                        Video asli yang dipilih user.
+                        Tidak perlu ditampilkan langsung.
+                        JavaScript akan mengambil
+                        sumber video ini dan menggambarnya
+                        ke canvas.
+                    -->
+                    <video
+                        id="sourceVideo"
+                        playsinline
+                        hidden
+                    ></video>
+
+
+                    <!-- Petunjuk awal -->
+                    <div
+                        class="stage-hint"
+                        id="stageHint"
+                    >
+                        Geser video di area preview
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- =========================
+                 KONTROL ZOOM
+            ========================== -->
+            <div class="controls">
+
+                <label for="zoom">
+
+                    <span>
+                        Zoom
+                    </span>
+
+                    <output id="zoomValue">
+                        100%
+                    </output>
+
+                </label>
+
+
+                <input
+                    type="range"
+                    id="zoom"
+                    min="70"
+                    max="180"
+                    value="100"
+                    step="1"
+                >
+
+            </div>
+
+
+            <!-- =========================
+                 TOMBOL AKSI
+            ========================== -->
+            <div class="actions">
+
+                <button
+                    class="secondary"
+                    id="playBtn"
+                    type="button"
+                >
+                    ▶ Lihat Preview
+                </button>
+
+
+                <button
+                    class="primary"
+                    id="downloadBtn"
+                    type="button"
+                >
+                    ⬇ Download Video
+                </button>
+
+            </div>
+
+
+            <!-- =========================
+                 PROGRESS DOWNLOAD
+            ========================== -->
+            <div
+                class="progress"
+                id="progressBox"
+                hidden
+            >
+
+                <div class="progress-label">
+
+                    <span id="progressText">
+                        Memproses video...
+                    </span>
+
+                    <span id="progressPct">
+                        0%
+                    </span>
+
+                </div>
+
+
+                <div class="bar">
+
+                    <span id="progressBar"></span>
+
+                </div>
+
+
+                <small>
+                    Jangan tutup halaman selama proses berlangsung.
+                </small>
+
+            </div>
+
+
+            <!-- =========================
+                 LINK HASIL DOWNLOAD
+            ========================== -->
+            <a
+                id="downloadLink"
+                class="download-ready"
+                hidden
+            >
+                ✅ Video selesai — klik untuk mengunduh
+            </a>
+
+        </section>
+
+
+        <!-- =========================
+             FOOTER
+        ========================== -->
+        <footer>
+
+            <strong>
+                Berpikir cermat, bergerak cepat
+                dengan tulus dan ikhlas.
+            </strong>
+
+            <span>
+                Salam Pramuka ⚜️
+            </span>
+
+        </footer>
+
+
+    </main>
+
+    <!-- JavaScript -->
+    <script src="script.js"></script>
+
+</body>
+</html>
