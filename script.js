@@ -41,7 +41,6 @@ twibbon.src = "assets/twibbon-overlay.png";
 const state = {
 
     videoURL: null,
-
     downloadURL: null,
 
     videoReady: false,
@@ -49,27 +48,24 @@ const state = {
     zoom: 1,
 
     offsetX: 0,
-
     offsetY: 0,
 
     dragging: false,
 
     dragStartX: 0,
-
     dragStartY: 0,
 
     startOffsetX: 0,
-
     startOffsetY: 0,
 
     animationFrame: null,
 
     exporting: false,
 
+    exportTimer: null,
+
     audioContext: null,
-
     mediaSource: null,
-
     audioDestination: null
 };
 
@@ -92,7 +88,6 @@ ctx.imageSmoothingQuality = "high";
 function showError(message) {
 
     uploadError.textContent = message;
-
     uploadError.hidden = false;
 }
 
@@ -100,7 +95,6 @@ function showError(message) {
 function clearError() {
 
     uploadError.textContent = "";
-
     uploadError.hidden = true;
 }
 
@@ -114,8 +108,16 @@ function clamp(value, min, max) {
 }
 
 
+function sleep(ms) {
+
+    return new Promise(resolve => {
+        setTimeout(resolve, ms);
+    });
+}
+
+
 /* =========================================================
-   TWIBBON LOADED
+   TWIBBON
 ========================================================= */
 
 twibbon.onload = () => {
@@ -141,6 +143,7 @@ videoInput.addEventListener(
             return;
         }
 
+
         if (
             !file.type.startsWith("video/")
         ) {
@@ -153,6 +156,7 @@ videoInput.addEventListener(
 
             return;
         }
+
 
         loadVideo(file);
     }
@@ -172,6 +176,7 @@ function loadVideo(file) {
         );
     }
 
+
     if (state.downloadURL) {
 
         URL.revokeObjectURL(
@@ -181,10 +186,13 @@ function loadVideo(file) {
         state.downloadURL = null;
     }
 
+
     state.videoURL =
         URL.createObjectURL(file);
 
+
     state.videoReady = false;
+
 
     sourceVideo.pause();
 
@@ -193,11 +201,24 @@ function loadVideo(file) {
 
     sourceVideo.playsInline = true;
 
+    sourceVideo.setAttribute(
+        "playsinline",
+        ""
+    );
+
+    /*
+        Jangan mute video.
+        Audio diperlukan saat export.
+    */
+
     sourceVideo.muted = false;
+
+    sourceVideo.volume = 1;
 
     sourceVideo.preload = "auto";
 
     sourceVideo.load();
+
 
     sourceVideo.addEventListener(
         "loadedmetadata",
@@ -206,6 +227,7 @@ function loadVideo(file) {
             once: true
         }
     );
+
 
     sourceVideo.addEventListener(
         "error",
@@ -238,8 +260,10 @@ function handleVideoMetadata() {
     const duration =
         sourceVideo.duration;
 
+
     if (
-        !Number.isFinite(duration)
+        !Number.isFinite(duration) ||
+        duration <= 0
     ) {
 
         showError(
@@ -262,7 +286,9 @@ function handleVideoMetadata() {
 
         sourceVideo.pause();
 
-        sourceVideo.removeAttribute("src");
+        sourceVideo.removeAttribute(
+            "src"
+        );
 
         sourceVideo.load();
 
@@ -273,7 +299,7 @@ function handleVideoMetadata() {
 
 
     /*
-        Reset posisi video.
+        Reset editor.
     */
 
     state.zoom = 1;
@@ -282,9 +308,11 @@ function handleVideoMetadata() {
 
     state.offsetY = 0;
 
+
     zoomSlider.value = 100;
 
-    zoomValue.textContent = "100%";
+    zoomValue.textContent =
+        "100%";
 
 
     /*
@@ -302,18 +330,15 @@ function handleVideoMetadata() {
     progressBox.hidden = true;
 
 
-    /*
-        Video siap.
-    */
-
     state.videoReady = true;
 
 
     /*
-        Render frame pertama.
+        Pastikan berada di frame pertama.
     */
 
     sourceVideo.currentTime = 0;
+
 
     sourceVideo.addEventListener(
         "loadeddata",
@@ -330,7 +355,7 @@ function handleVideoMetadata() {
 
 
 /* =========================================================
-   VIDEO DRAW DIMENSIONS
+   VIDEO DIMENSIONS
 ========================================================= */
 
 function getVideoDrawDimensions() {
@@ -340,6 +365,7 @@ function getVideoDrawDimensions() {
 
     const videoHeight =
         sourceVideo.videoHeight;
+
 
     if (
         !videoWidth ||
@@ -353,18 +379,18 @@ function getVideoDrawDimensions() {
         canvas.width /
         canvas.height;
 
+
     const videoRatio =
         videoWidth /
         videoHeight;
 
-    let drawWidth;
 
+    let drawWidth;
     let drawHeight;
 
 
     /*
-        Cover:
-        video memenuhi canvas 9:16.
+        Cover.
     */
 
     if (
@@ -394,7 +420,6 @@ function getVideoDrawDimensions() {
     */
 
     drawWidth *= state.zoom;
-
     drawHeight *= state.zoom;
 
 
@@ -412,7 +437,7 @@ function getVideoDrawDimensions() {
 function renderFrame() {
 
     /*
-        Bersihkan canvas.
+        Background.
     */
 
     ctx.clearRect(
@@ -422,10 +447,6 @@ function renderFrame() {
         canvas.height
     );
 
-
-    /*
-        Background hitam.
-    */
 
     ctx.fillStyle = "#000";
 
@@ -438,7 +459,7 @@ function renderFrame() {
 
 
     /*
-        Gambar video.
+        VIDEO
     */
 
     if (
@@ -449,6 +470,7 @@ function renderFrame() {
         const dimensions =
             getVideoDrawDimensions();
 
+
         if (dimensions) {
 
             const x =
@@ -457,6 +479,7 @@ function renderFrame() {
                     dimensions.width
                 ) / 2 +
                 state.offsetX;
+
 
             const y =
                 (
@@ -478,7 +501,7 @@ function renderFrame() {
 
 
     /*
-        Gambar Twibbon di atas video.
+        TWIBBON
     */
 
     if (
@@ -498,7 +521,7 @@ function renderFrame() {
 
 
 /* =========================================================
-   NORMAL PREVIEW LOOP
+   PREVIEW LOOP
 ========================================================= */
 
 function startPreviewLoop() {
@@ -522,11 +545,14 @@ function startPreviewLoop() {
         ) {
 
             state.animationFrame =
-                requestAnimationFrame(loop);
+                requestAnimationFrame(
+                    loop
+                );
 
         } else {
 
-            state.animationFrame = null;
+            state.animationFrame =
+                null;
         }
     }
 
@@ -570,20 +596,25 @@ resetBtn.addEventListener(
             return;
         }
 
+
         state.zoom = 1;
 
         state.offsetX = 0;
 
         state.offsetY = 0;
 
+
         zoomSlider.value = 100;
 
         zoomValue.textContent =
             "100%";
 
+
         sourceVideo.currentTime = 0;
 
+
         stageHint.hidden = false;
+
 
         renderFrame();
     }
@@ -591,7 +622,7 @@ resetBtn.addEventListener(
 
 
 /* =========================================================
-   POINTER DOWN
+   DRAG - POINTER DOWN
 ========================================================= */
 
 stage.addEventListener(
@@ -602,9 +633,11 @@ stage.addEventListener(
             return;
         }
 
+
         if (state.exporting) {
             return;
         }
+
 
         state.dragging = true;
 
@@ -637,7 +670,7 @@ stage.addEventListener(
 
 
 /* =========================================================
-   POINTER MOVE
+   DRAG - POINTER MOVE
 ========================================================= */
 
 stage.addEventListener(
@@ -656,6 +689,7 @@ stage.addEventListener(
         const scaleX =
             canvas.width /
             rect.width;
+
 
         const scaleY =
             canvas.height /
@@ -692,7 +726,7 @@ stage.addEventListener(
 
 
 /* =========================================================
-   STOP DRAG
+   DRAG - STOP
 ========================================================= */
 
 function stopDragging(event) {
@@ -700,6 +734,7 @@ function stopDragging(event) {
     if (!state.dragging) {
         return;
     }
+
 
     state.dragging = false;
 
@@ -712,7 +747,7 @@ function stopDragging(event) {
 
     } catch (error) {
 
-        // Pointer sudah dilepas.
+        // Tidak masalah.
     }
 
 
@@ -726,6 +761,7 @@ stage.addEventListener(
     stopDragging
 );
 
+
 stage.addEventListener(
     "pointercancel",
     stopDragging
@@ -733,7 +769,7 @@ stage.addEventListener(
 
 
 /* =========================================================
-   PLAY / PAUSE PREVIEW
+   PREVIEW PLAY / PAUSE
 ========================================================= */
 
 playBtn.addEventListener(
@@ -743,6 +779,7 @@ playBtn.addEventListener(
         if (!state.videoReady) {
             return;
         }
+
 
         if (state.exporting) {
             return;
@@ -764,16 +801,31 @@ playBtn.addEventListener(
 
             try {
 
+                /*
+                    User interaction terjadi di sini,
+                    sehingga browser HP mengizinkan audio.
+                */
+
+                sourceVideo.muted = false;
+
                 await sourceVideo.play();
+
 
                 playBtn.textContent =
                     "⏸ Pause Preview";
 
+
                 stageHint.hidden = true;
+
 
                 startPreviewLoop();
 
             } catch (error) {
+
+                console.error(
+                    error
+                );
+
 
                 showError(
                     "Video tidak dapat diputar."
@@ -784,8 +836,10 @@ playBtn.addEventListener(
 
             sourceVideo.pause();
 
+
             playBtn.textContent =
                 "▶ Lihat Preview";
+
 
             renderFrame();
         }
@@ -803,6 +857,7 @@ sourceVideo.addEventListener(
 
         playBtn.textContent =
             "▶ Lihat Preview";
+
 
         renderFrame();
     }
@@ -823,13 +878,15 @@ function getSupportedMimeType() {
 
         "video/webm",
 
-        "video/mp4;codecs=avc1,mp4a.40.2",
+        "video/mp4;codecs=avc1.42E01E,mp4a.40.2",
 
         "video/mp4"
     ];
 
 
-    for (const type of types) {
+    for (
+        const type of types
+    ) {
 
         if (
             MediaRecorder.isTypeSupported(
@@ -847,64 +904,122 @@ function getSupportedMimeType() {
 
 
 /* =========================================================
-   AUDIO CAPTURE
+   AUDIO STREAM
 ========================================================= */
 
-function setupAudioCapture() {
+function getAudioStream() {
 
-    if (!sourceVideo.src) {
-        return null;
-    }
+    /*
+        Cara utama:
+        ambil audio langsung dari video.
+    */
 
+    if (
+        typeof sourceVideo.captureStream ===
+        "function"
+    ) {
 
-    if (!state.audioContext) {
+        try {
 
-        const AudioContext =
-            window.AudioContext ||
-            window.webkitAudioContext;
-
-
-        if (!AudioContext) {
-            return null;
-        }
-
-
-        state.audioContext =
-            new AudioContext();
+            const videoStream =
+                sourceVideo.captureStream();
 
 
-        state.audioDestination =
-            state.audioContext
-                .createMediaStreamDestination();
+            const audioTracks =
+                videoStream.getAudioTracks();
 
 
-        state.mediaSource =
-            state.audioContext
-                .createMediaElementSource(
-                    sourceVideo
+            if (
+                audioTracks.length > 0
+            ) {
+
+                const audioOnlyStream =
+                    new MediaStream();
+
+
+                audioTracks.forEach(
+                    track => {
+
+                        audioOnlyStream.addTrack(
+                            track
+                        );
+                    }
                 );
 
 
-        /*
-            Audio hanya diarahkan ke stream
-            untuk hasil export.
+                return audioOnlyStream;
+            }
 
-            Tidak diarahkan ke speaker,
-            jadi tidak terjadi suara dobel.
-        */
+        } catch (error) {
 
-        state.mediaSource.connect(
-            state.audioDestination
-        );
+            console.warn(
+                "captureStream audio gagal:",
+                error
+            );
+        }
     }
 
 
-    return state.audioDestination.stream;
+    /*
+        Fallback:
+        AudioContext.
+    */
+
+    try {
+
+        if (
+            !state.audioContext
+        ) {
+
+            const AudioContext =
+                window.AudioContext ||
+                window.webkitAudioContext;
+
+
+            if (!AudioContext) {
+                return null;
+            }
+
+
+            state.audioContext =
+                new AudioContext();
+
+
+            state.audioDestination =
+                state.audioContext
+                    .createMediaStreamDestination();
+
+
+            state.mediaSource =
+                state.audioContext
+                    .createMediaElementSource(
+                        sourceVideo
+                    );
+
+
+            state.mediaSource.connect(
+                state.audioDestination
+            );
+        }
+
+
+        return state.audioDestination.stream;
+
+    } catch (error) {
+
+        console.warn(
+            "AudioContext gagal:",
+            error
+        );
+
+
+        return null;
+    }
 }
 
 
 /* =========================================================
-   DOWNLOAD BUTTON
+   DOWNLOAD
 ========================================================= */
 
 downloadBtn.addEventListener(
@@ -915,12 +1030,14 @@ downloadBtn.addEventListener(
             return;
         }
 
+
         if (state.exporting) {
             return;
         }
 
 
         clearError();
+
 
         await exportVideo();
     }
@@ -948,25 +1065,28 @@ async function exportVideo() {
 
 
     /*
-        UI progress.
+        UI.
     */
 
     progressBox.hidden = false;
 
     downloadLink.hidden = true;
 
+
     progressText.textContent =
         "Menyiapkan video...";
 
+
     progressPct.textContent =
         "0%";
+
 
     progressBar.style.width =
         "0%";
 
 
     /*
-        Hentikan preview.
+        Stop preview.
     */
 
     sourceVideo.pause();
@@ -983,10 +1103,20 @@ async function exportVideo() {
 
 
     /*
-        Pastikan video kembali ke awal.
+        Pastikan audio tidak mute.
+    */
+
+    sourceVideo.muted = false;
+
+    sourceVideo.volume = 1;
+
+
+    /*
+        Reset ke awal.
     */
 
     sourceVideo.currentTime = 0;
+
 
     await waitForSeek();
 
@@ -999,7 +1129,7 @@ async function exportVideo() {
 
 
     /*
-        Canvas stream 30 FPS.
+        Canvas stream.
     */
 
     const canvasStream =
@@ -1007,35 +1137,33 @@ async function exportVideo() {
 
 
     /*
-        Audio stream.
+        Audio.
     */
 
-    let audioStream = null;
+    let audioStream =
+        getAudioStream();
 
 
-    try {
+    /*
+        Resume AudioContext jika diperlukan.
+    */
 
-        audioStream =
-            setupAudioCapture();
+    if (
+        state.audioContext &&
+        state.audioContext.state ===
+            "suspended"
+    ) {
 
-
-        if (
-            state.audioContext &&
-            state.audioContext.state ===
-                "suspended"
-        ) {
+        try {
 
             await state.audioContext.resume();
+
+        } catch (error) {
+
+            console.warn(
+                "AudioContext resume gagal."
+            );
         }
-
-    } catch (error) {
-
-        console.warn(
-            "Audio capture gagal:",
-            error
-        );
-
-        audioStream = null;
     }
 
 
@@ -1045,11 +1173,11 @@ async function exportVideo() {
 
     if (audioStream) {
 
-        const audioTracks =
+        const tracks =
             audioStream.getAudioTracks();
 
 
-        audioTracks.forEach(
+        tracks.forEach(
             track => {
 
                 canvasStream.addTrack(
@@ -1061,7 +1189,7 @@ async function exportVideo() {
 
 
     /*
-        Format output.
+        MIME.
     */
 
     const mimeType =
@@ -1070,23 +1198,25 @@ async function exportVideo() {
 
     if (!mimeType) {
 
-        cleanupCanvasStream(
+        cleanupStream(
             canvasStream
         );
+
 
         finishExport();
 
 
         showError(
-            "Browser ini tidak mendukung export video. Gunakan Chrome atau Edge terbaru."
+            "Browser ini tidak mendukung export video."
         );
+
 
         return;
     }
 
 
     /*
-        Buat MediaRecorder.
+        MediaRecorder.
     */
 
     let recorder;
@@ -1108,16 +1238,18 @@ async function exportVideo() {
 
     } catch (error) {
 
-        cleanupCanvasStream(
+        cleanupStream(
             canvasStream
         );
+
 
         finishExport();
 
 
         showError(
-            "Gagal membuat proses export video."
+            "Gagal membuat video."
         );
+
 
         return;
     }
@@ -1126,9 +1258,9 @@ async function exportVideo() {
     const chunks = [];
 
 
-    /* =====================================================
-       DATA AVAILABLE
-    ===================================================== */
+    /*
+        Data.
+    */
 
     recorder.ondataavailable =
         event => {
@@ -1145,9 +1277,9 @@ async function exportVideo() {
         };
 
 
-    /* =====================================================
-       ERROR
-    ===================================================== */
+    /*
+        Error.
+    */
 
     recorder.onerror =
         event => {
@@ -1158,7 +1290,20 @@ async function exportVideo() {
             );
 
 
-            cleanupCanvasStream(
+            if (
+                state.exportTimer
+            ) {
+
+                clearTimeout(
+                    state.exportTimer
+                );
+
+                state.exportTimer =
+                    null;
+            }
+
+
+            cleanupStream(
                 canvasStream
             );
 
@@ -1172,12 +1317,25 @@ async function exportVideo() {
         };
 
 
-    /* =====================================================
-       STOP
-    ===================================================== */
+    /*
+        Stop.
+    */
 
     recorder.onstop =
         () => {
+
+            if (
+                state.exportTimer
+            ) {
+
+                clearTimeout(
+                    state.exportTimer
+                );
+
+                state.exportTimer =
+                    null;
+            }
+
 
             const blob =
                 new Blob(
@@ -1188,9 +1346,25 @@ async function exportVideo() {
                 );
 
 
-            cleanupCanvasStream(
+            cleanupStream(
                 canvasStream
             );
+
+
+            if (
+                blob.size === 0
+            ) {
+
+                finishExport();
+
+
+                showError(
+                    "Video hasil export kosong. Silakan coba lagi."
+                );
+
+
+                return;
+            }
 
 
             createDownloadLink(
@@ -1204,18 +1378,20 @@ async function exportVideo() {
 
 
     /*
-        Mulai recorder TERLEBIH DAHULU.
+        ============================================
+        START RECORDING
+        ============================================
     */
 
     recorder.start(250);
 
 
     /*
-        Beri waktu sedikit agar recorder
-        benar-benar aktif.
+        Tunggu sebentar agar recorder benar-benar
+        aktif sebelum video dimainkan.
     */
 
-    await sleep(100);
+    await sleep(300);
 
 
     /*
@@ -1224,12 +1400,17 @@ async function exportVideo() {
 
     try {
 
+        sourceVideo.currentTime = 0;
+
+        await waitForSeek();
+
+
         await sourceVideo.play();
 
     } catch (error) {
 
         console.error(
-            "Play export gagal:",
+            "Export play error:",
             error
         );
 
@@ -1247,66 +1428,44 @@ async function exportVideo() {
 
 
         showError(
-            "Video tidak dapat diputar untuk proses export."
+            "Video tidak dapat diputar untuk export."
         );
+
 
         return;
     }
 
 
     /*
-        Jalankan render loop.
+        Render loop.
     */
 
-    exportRenderLoop(
-        recorder
-    );
-}
-
-
-/* =========================================================
-   EXPORT RENDER LOOP
-========================================================= */
-
-function exportRenderLoop(
-    recorder
-) {
-
-    /*
-        Render frame terbaru.
-    */
-
-    renderFrame();
+    startExportRenderLoop();
 
 
     /*
-        Update progress.
+        ============================================
+        TIMER UTAMA
+        ============================================
+
+        Kita tidak mengandalkan currentTime
+        untuk menghentikan recorder.
+
+        Durasi asli video yang menentukan kapan
+        recorder berhenti.
     */
 
-    updateProgress();
+    const duration =
+        sourceVideo.duration;
 
 
-    /*
-        Jika video benar-benar sudah selesai,
-        baru hentikan recorder.
-    */
-
-    if (
-        sourceVideo.ended
-    ) {
-
-        /*
-            Render frame terakhir sekali lagi.
-        */
-
-        renderFrame();
+    const exportTime =
+        Math.ceil(
+            duration * 1000
+        ) + 1000;
 
 
-        /*
-            Beri waktu MediaRecorder mengambil
-            frame terakhir.
-        */
-
+    state.exportTimer =
         setTimeout(
             () => {
 
@@ -1315,32 +1474,46 @@ function exportRenderLoop(
                     "inactive"
                 ) {
 
+                    sourceVideo.pause();
+
+                    renderFrame();
+
                     recorder.stop();
                 }
 
             },
-            500
+            exportTime
         );
+}
 
 
-        return;
+/* =========================================================
+   EXPORT RENDER LOOP
+========================================================= */
+
+function startExportRenderLoop() {
+
+    function loop() {
+
+        if (!state.exporting) {
+            return;
+        }
+
+
+        renderFrame();
+
+
+        updateProgress();
+
+
+        state.animationFrame =
+            requestAnimationFrame(
+                loop
+            );
     }
 
 
-    /*
-        Lanjut render sampai video selesai.
-    */
-
-    state.animationFrame =
-        requestAnimationFrame(
-            () => {
-
-                exportRenderLoop(
-                    recorder
-                );
-
-            }
-        );
+    loop();
 }
 
 
@@ -1352,6 +1525,7 @@ function updateProgress() {
 
     const duration =
         sourceVideo.duration;
+
 
     const current =
         sourceVideo.currentTime;
@@ -1386,16 +1560,10 @@ function updateProgress() {
         `${Math.round(percent)}%`;
 
 
-    if (percent >= 99) {
-
-        progressText.textContent =
-            "Menyelesaikan video...";
-
-    } else {
-
-        progressText.textContent =
-            "Memproses video...";
-    }
+    progressText.textContent =
+        percent >= 99
+            ? "Menyelesaikan video..."
+            : "Memproses video...";
 }
 
 
@@ -1407,14 +1575,11 @@ function waitForSeek() {
 
     return new Promise(resolve => {
 
-        /*
-            Jika sudah di posisi 0 dan
-            frame sudah tersedia.
-        */
-
         if (
-            sourceVideo.currentTime === 0 &&
-            sourceVideo.readyState >= 2
+            sourceVideo.readyState >= 2 &&
+            Math.abs(
+                sourceVideo.currentTime
+            ) < 0.01
         ) {
 
             resolve();
@@ -1426,11 +1591,12 @@ function waitForSeek() {
         let finished = false;
 
 
-        function done() {
+        const done = () => {
 
             if (finished) {
                 return;
             }
+
 
             finished = true;
 
@@ -1442,7 +1608,7 @@ function waitForSeek() {
 
 
             resolve();
-        }
+        };
 
 
         sourceVideo.addEventListener(
@@ -1451,42 +1617,19 @@ function waitForSeek() {
         );
 
 
-        /*
-            Safety fallback.
-        */
-
         setTimeout(
             done,
-            1000
+            1500
         );
     });
 }
 
 
 /* =========================================================
-   SLEEP
+   CLEANUP STREAM
 ========================================================= */
 
-function sleep(ms) {
-
-    return new Promise(
-        resolve => {
-            setTimeout(
-                resolve,
-                ms
-            );
-        }
-    );
-}
-
-
-/* =========================================================
-   CLEANUP CANVAS STREAM
-========================================================= */
-
-function cleanupCanvasStream(
-    stream
-) {
+function cleanupStream(stream) {
 
     if (!stream) {
         return;
@@ -1513,10 +1656,6 @@ function createDownloadLink(
     mimeType
 ) {
 
-    /*
-        Hapus URL lama.
-    */
-
     if (state.downloadURL) {
 
         URL.revokeObjectURL(
@@ -1529,19 +1668,11 @@ function createDownloadLink(
         URL.createObjectURL(blob);
 
 
-    /*
-        Tentukan ekstensi.
-    */
-
     const extension =
         mimeType.includes("mp4")
             ? "mp4"
             : "webm";
 
-
-    /*
-        Buat nama file.
-    */
 
     const filename =
         `mustika-pradapati-video.${extension}`;
@@ -1561,10 +1692,6 @@ function createDownloadLink(
 
     downloadLink.hidden = false;
 
-
-    /*
-        Progress 100%.
-    */
 
     progressBar.style.width =
         "100%";
@@ -1595,11 +1722,16 @@ function finishExport() {
     zoomSlider.disabled = false;
 
 
-    sourceVideo.pause();
+    if (
+        state.exportTimer
+    ) {
 
+        clearTimeout(
+            state.exportTimer
+        );
 
-    playBtn.textContent =
-        "▶ Lihat Preview";
+        state.exportTimer = null;
+    }
 
 
     if (state.animationFrame) {
@@ -1612,12 +1744,19 @@ function finishExport() {
     }
 
 
+    sourceVideo.pause();
+
+
+    playBtn.textContent =
+        "▶ Lihat Preview";
+
+
     renderFrame();
 }
 
 
 /* =========================================================
-   CLEANUP WHEN PAGE CLOSED
+   PAGE CLEANUP
 ========================================================= */
 
 window.addEventListener(
@@ -1649,7 +1788,7 @@ window.addEventListener(
 
 
 /* =========================================================
-   INITIAL STATE
+   INITIAL UI
 ========================================================= */
 
 editor.hidden = true;
@@ -1658,6 +1797,8 @@ downloadLink.hidden = true;
 
 progressBox.hidden = true;
 
-stage.style.cursor = "grab";
+stage.style.cursor =
+    "grab";
+
 
 renderFrame();
